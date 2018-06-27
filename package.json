@@ -53,7 +53,7 @@
       "core-js": "^2.0.3"
     }
   },
-  "dependencies": {
+  "peerDependencies": {
     "aurelia-dependency-injection": "^1.0.0",
     "aurelia-event-aggregator": "^1.0.0",
     "aurelia-history": "^1.1.0",
