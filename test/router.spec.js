@@ -249,6 +249,53 @@ describe('the router', () => {
         .then(done);
     });
 
+    describe('should match routes with same pattern based on href', () => {
+      it('', (done) => {
+        router.configure(config => config.map([
+          { name: 'a', route: 'test/:p', moduleId: './test', href: '/test/a' },
+          { name: 'b', route: 'test/:p', moduleId: './test', href: '/test/b' }
+        ]))
+          .then(() => router._createNavigationInstruction('test/b?foo=456'))
+          .then(i => {
+            expect(i.fragment).toEqual('test/b');
+            expect(i.queryString).toEqual('foo=456');
+            expect(i.params.p).toEqual('b');
+            expect(i.config.name).toEqual('b');
+          })
+          .catch(reason => fail(reason))
+          .then(done);
+      });
+
+      it('when fragment matches the child router', (done) => {
+        const childRouter = router.createChild(new Container());
+
+        router.configure(config => config.map([
+          { name: 'a', route: 'parent/:p', moduleId: './parent', href: '/parent/a' },
+          { name: 'b', route: 'parent/:p', moduleId: './parent', href: '/parent/b' }
+        ]))
+          .then(() => childRouter.configure(config => config.map([
+            { name: 'c', route: 'child/:p', moduleId: './child', href: '/child/c' },
+            { name: 'd', route: 'child/:p', moduleId: './child', href: '/child/d' },
+          ])))
+          .then(() => router._createNavigationInstruction('parent/b/child/c?foo=456'))
+          .then(i => {
+            expect(i.fragment).toEqual('parent/b/child/c');
+            expect(i.queryString).toEqual('foo=456');
+            expect(i.params.p).toEqual('b');
+            expect(i.config.name).toEqual('b');
+          })
+          .then(() => childRouter._createNavigationInstruction('child/c?foo=456'))
+          .then(i => {
+            expect(i.fragment).toEqual('child/c');
+            expect(i.queryString).toEqual('foo=456');
+            expect(i.params.p).toEqual('c');
+            expect(i.config.name).toEqual('c');
+          })
+          .catch(reason => fail(reason))
+          .then(done);
+      });
+    });
+
     it('should be case insensitive by default', (done) => {
       router.configure(config => config.map({ name: 'test', route: 'test/:id', moduleId: './test' }))
         .then(() => router._createNavigationInstruction('TeSt/123?foo=456'))
@@ -266,33 +313,25 @@ describe('the router', () => {
     });
 
     describe('catchAllHandler', () => {
-      let expectedInstructionShape = jasmine.objectContaining({ config: jasmine.objectContaining({ moduleId: 'test' }) });
-
       it('should use a parent routers catchAllHandler if one exists', (done) => {
         const child = router.createChild(new Container());
         child.baseUrl = 'empty';
-        let expectedFirstInstructionShape = jasmine.objectContaining({ config: jasmine.objectContaining({ moduleId: './empty' }) });
-        let expectedSecondInstructionShape = jasmine.objectContaining({ config: jasmine.objectContaining({ moduleId: 'test' }) });
         Promise.all([
           router.configure(config => {
             config.unknownRouteConfig = 'test';
-            config.mapRoute({route: 'foo', moduleId: './empty'})
+            config.mapRoute({route: 'foo', moduleId: './empty'});
           }),
           child.configure(config => {
-            config.map([
-              { name: 'empty', route: '', moduleId: './child-empty' }
-            ]);
+            config.mapRoute({ route: '', moduleId: './child-empty' });
           })
         ])
-        .then(() => {
-          return router._createNavigationInstruction('foo/bar/123?bar=456')
-          .then(x => {
-            expect(x).toEqual(expectedFirstInstructionShape)
-            return child._createNavigationInstruction('bar/123?bar=456', x)
-            .then(x1 => expect(x1).toEqual(expectedInstructionShape))
-          });
+        .then(() => router._createNavigationInstruction('foo/bar/123?bar=456'))
+        .then(parentInstruction => {
+          expect(parentInstruction.config.moduleId).toEqual('./empty');
+          return child._createNavigationInstruction('bar/123?bar=456', parentInstruction);
         })
-        .catch(reason => fail(reason))
+        .then(childInstruction => expect(childInstruction.config.moduleId).toEqual('test'))
+        .catch(fail)
         .then(done);
       });
 
@@ -302,8 +341,8 @@ describe('the router', () => {
             config.unknownRouteConfig = 'test';
           })
           .then(() => router._createNavigationInstruction('foo/123?bar=456'))
-          .then(x => expect(x).toEqual(expectedInstructionShape))
-          .catch(reason => fail(reason))
+          .then(instruction => expect(instruction.config.moduleId).toEqual('test'))
+          .catch(fail)
           .then(done);
       });
 
@@ -313,8 +352,8 @@ describe('the router', () => {
             config.unknownRouteConfig = { moduleId: 'test' };
           })
           .then(() => router._createNavigationInstruction('foo/123?bar=456'))
-          .then(x => expect(x).toEqual(expectedInstructionShape))
-          .catch(reason => fail(reason))
+          .then(instruction => expect(instruction.config.moduleId).toEqual('test'))
+          .catch(fail)
           .then(done);
       });
 
@@ -324,8 +363,8 @@ describe('the router', () => {
             config.unknownRouteConfig = instruction => ({ moduleId: 'test' });
           })
           .then(() => router._createNavigationInstruction('foo/123?bar=456'))
-          .then(x => expect(x).toEqual(expectedInstructionShape))
-          .catch(reason => fail(reason))
+          .then(instruction => expect(instruction.config.moduleId).toEqual('test'))
+          .catch(fail)
           .then(done);
       });
 
@@ -335,8 +374,8 @@ describe('the router', () => {
             config.unknownRouteConfig = instruction => Promise.resolve({ moduleId: 'test' });
           })
           .then(() => router._createNavigationInstruction('foo/123?bar=456'))
-          .then(x => expect(x).toEqual(expectedInstructionShape))
-          .catch(reason => fail(reason))
+          .then(instruction => expect(instruction.config.moduleId).toEqual('test'))
+          .catch(fail)
           .then(done);
       });
 
@@ -344,13 +383,16 @@ describe('the router', () => {
         router
           .configure(config => {
             config.unknownRouteConfig = instruction => {
-              expect(instruction).toEqual(jasmine.objectContaining({ fragment: 'foo/123', queryString: 'bar=456', config: null }));
+              expect(instruction.fragment).toBe('foo/123');
+              expect(instruction.queryString).toBe('bar=456');
+              expect(instruction.config).toBe(null);
+
               return { moduleId: 'test' };
             };
           })
           .then(() => router._createNavigationInstruction('foo/123?bar=456'))
-          .then(x => expect(x).toEqual(expectedInstructionShape))
-          .catch(reason => fail(reason))
+          .then(instruction => expect(instruction.config.moduleId).toEqual('test'))
+          .catch(fail)
           .then(done);
       });
 
@@ -366,8 +408,8 @@ describe('the router', () => {
             config.unknownRouteConfig = instruction => null;
           })
           .then(() => router._createNavigationInstruction('foo/123?bar=456'))
-          .then(x => expect(true).toBeFalsy('should have rejected', x))
-          .catch(reason => done());
+          .then(() => fail('should have rejected'))
+          .catch(done);
       });
     });
   });

@@ -131,7 +131,8 @@ describe('NavigationInstruction', () => {
       router._createNavigationInstruction(parentRouteName).then(instruction => {
         expect(instruction.getBaseUrl()).toBe(parentRouteName);
         done();
-      });
+      })
+    .catch(fail);
     });
 
     it('should return the raw fragment when no wildcard exists', (done) => {
@@ -139,7 +140,8 @@ describe('NavigationInstruction', () => {
         instruction.params = { fake: 'fakeParams' };
         expect(instruction.getBaseUrl()).toBe(parentRouteName);
         done();
-      });
+      })
+      .catch(fail);
     });
 
     describe('when a uri contains spaces', () => {
@@ -147,28 +149,32 @@ describe('NavigationInstruction', () => {
         router._createNavigationInstruction('parent/parent%201').then(instruction => {
           expect(instruction.getBaseUrl()).toBe('parent/parent%201');
           done();
-        });
+        })
+        .catch(fail);
       });
 
       it('should encode the uri', (done) => {
         router._createNavigationInstruction('parent/parent 1').then(instruction => {
           expect(instruction.getBaseUrl()).toBe('parent/parent%201');
           done();
-        });
+        })
+        .catch(fail);
       });
 
       it('should identify encoded fragments', (done) => {
         router._createNavigationInstruction('parent/parent%201/child/child%201').then(instruction => {
           expect(instruction.getBaseUrl()).toBe('parent/parent%201/');
           done();
-        });
+        })
+        .catch(fail);
       });
 
       it('should identify fragments and encode them', (done) => {
         router._createNavigationInstruction('parent/parent 1/child/child 1').then(instruction => {
           expect(instruction.getBaseUrl()).toBe('parent/parent%201/');
           done();
-        });
+        })
+        .catch(fail);
       });
     });
 
@@ -182,7 +188,8 @@ describe('NavigationInstruction', () => {
             expect(child.baseUrl).toBe(parentRouteName);
             done();
           });
-        });
+        })
+        .catch(fail);
       });
     });
 
@@ -196,7 +203,8 @@ describe('NavigationInstruction', () => {
             expect(child.baseUrl).toBe(parentRouteName);
             done();
           });
-        });
+        })
+        .catch(fail);
       });
     });
   });
